@@ -3,7 +3,9 @@ import tarfile
 from six.moves import urllib
 import pandas as pd
 import numpy as np
-import hashlib
+from zlib import crc32
+
+# California Housing Prices dataset from StatLib repository
 
 DOWNLOAD_ROOT = "https://raw.githubusercontent.com/ageron/handson-ml/master/"
 HOUSING_PATH = os.path.join("datasets","housing")
@@ -28,7 +30,7 @@ def load_housing_data(housing_path=HOUSING_PATH):
     return pd.read_csv(csv_path)
 
 def split_train_set(data,test_ratio) :
-    np.random.seed(42)
+    np.random.seed(42) # to make sure we get the same test set every time
     shuffled_indices = np.random.permutation(len(data))
     test_set_size = int(len(data) * test_ratio )
     test_indices = shuffled_indices[:test_set_size]
@@ -37,28 +39,34 @@ def split_train_set(data,test_ratio) :
 
 # compute a hash of each instance's identifier, keep only the last byte of the hash
 # select only the instances that their id is lower than 256 * test_ratio
-def test_set_check(identifier,test_ratio, hash) :
-    return hash(np.int64(identifier)).digest()[-1] < 256 * test_ratio
+def test_set_check(identifier, test_ratio):
+    return crc32(np.int64(identifier)) & 0xffffffff < test_ratio * 2**32
 
-def split_train_set_by_id(data, test_ratio, id_column, hash=hashlib.md5):
+def split_train_test_by_id(data, test_ratio, id_column):
     ids = data[id_column]
-    in_test_set = ids.apply(lambda id_ :test_set_check(id_, test_ratio, hash))
+    in_test_set = ids.apply(lambda id_: test_set_check(id_, test_ratio))
     return data.loc[~in_test_set], data.loc[in_test_set]
-
+    
 # main
 fetch_housing_data()
 housing = load_housing_data()
+# Get a quick description of the data
 # housing.info()
+#
+# find out what categories exist and how many districts belong to each category
 # housing["ocean_proximity"].value_counts()
+#
+# show a summary of the numerical attributes
 # housing.describe()
-# %matplotlib inline
+#
+# Plotting a histogram for each numerical attribute
+# %matplotlib inline # only in a Jupyter notebook
 # import matplotlib.pyplot as plt
 # housing.hist(bins=50,figsize=(20,15))
 # plt.show()
-# housing.head()
-load_housing_data()
+#
 # 3 implemenation options for building the test-set
-# (1) naive - the problem is that the test-set is reshuffled every timea new data is added
+# (1) naive - the problem is that the test-set is reshuffled every time a new data is added.
 # train_set,test_set = split_train_set(housing, 0.2)
 # (2) Use a hash function to selec the test-set. The problem is that it is assumed that new data gets appened to the end of the dataset
 # housing_with_id = housing.reset_index() # adds an 'index' column
